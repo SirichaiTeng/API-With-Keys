@@ -16,7 +16,6 @@ namespace APIWithKeys.Middleware
 
         public async Task InvokeAsync(HttpContext context)
         {
-            //ทำการดึง api key มาตรวจสอบถ้าไม่มีให้ return "API Key missing" 
             if (!context.Request.Headers.TryGetValue(AuthConstants.ApiKeyHeaderName,
                 out var extractedApiKey))
             {
@@ -24,7 +23,6 @@ namespace APIWithKeys.Middleware
                 await context.Response.WriteAsync("API Key missing");
                 return;
             }
-            //ทำการดึง api key มาตรวจสอบถ้า api key ไม่ถูกต้อง return "Invalid API Key" 
             var apikey = _configuration.GetValue<string>(AuthConstants.ApiKeySectionName);
             if(!apikey.Equals(extractedApiKey))
             { 

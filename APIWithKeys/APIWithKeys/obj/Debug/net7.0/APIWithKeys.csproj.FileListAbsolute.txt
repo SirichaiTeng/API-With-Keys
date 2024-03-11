@@ -78,3 +78,4 @@ D:\PORTFOLIO\PortfolioAPI\APIWithKeys\APIWithKeys\bin\Debug\net7.0\runtimes\win-
 D:\PORTFOLIO\PortfolioAPI\APIWithKeys\APIWithKeys\bin\Debug\net7.0\runtimes\win-x86\native\sni.dll
 D:\PORTFOLIO\PortfolioAPI\APIWithKeys\APIWithKeys\bin\Debug\net7.0\runtimes\unix\lib\netcoreapp2.1\System.Data.SqlClient.dll
 D:\PORTFOLIO\PortfolioAPI\APIWithKeys\APIWithKeys\bin\Debug\net7.0\runtimes\win\lib\netcoreapp2.1\System.Data.SqlClient.dll
+D:\PORTFOLIO\PortfolioAPI\APIWithKeys\APIWithKeys\bin\Debug\net7.0\RestSharp.dll

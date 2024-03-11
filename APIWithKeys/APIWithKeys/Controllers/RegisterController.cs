@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 using Npgsql;
+using RestSharp;
 using System;
 using System.Data;
 using System.Data.SqlClient;
@@ -29,17 +30,8 @@ namespace APIWithKeys.Controllers
         [HttpPost]
         [Route("Register")]
         public IActionResult Register([FromBody] UserDTO usersdto)
-        //public async Task<ActionResult<Users>> Register(UserDTO request)
-
         {
-            //CreatePasswordHash(request.password, out byte[] passwordHash, out byte[] passwordSalt);
-            //user.username = request.username;
-            //user.userpasswordHash = passwordHash;
-            //user.userpasswordSalt = passwordSalt;
-            //return Ok(user);
-
             CreatePasswordHash(usersdto.password, out byte[] passwordHash, out byte[] passwordSalt);
-
             int result = 0;
             Guid id = Guid.NewGuid();
             string connect = _configuration["ConnectionStrings:postgres"];
@@ -66,42 +58,7 @@ namespace APIWithKeys.Controllers
             }
 
         }
-        //public IActionResult Register([FromBody] UserDTO usersdto)
-        //{
-        //    byte[] passwordHash, passwordSalt;
-        //    CreatePasswordHash(usersdto.password, out passwordHash, out passwordSalt); // แก้ไขตรงนี้
-        //    Guid id = Guid.NewGuid();
-        //    string connect = _configuration["ConnectionStrings:postgres"];
-        //    string query = "INSERT INTO users (userid, username, passwordhash, passwordsalt) VALUES (@userid, @username, @passwordhash, @passwordsalt)";
 
-        //    using (NpgsqlConnection con = new NpgsqlConnection(connect))
-        //    {
-
-        //        using (NpgsqlCommand ncm = new NpgsqlCommand(query, con))
-        //        {
-        //            //ncm.Parameters.AddWithValue("@userid", id);
-        //            //ncm.Parameters.AddWithValue("@username", usersdto.username);
-        //            //ncm.Parameters.AddWithValue("@passwordhash", passwordHash);
-        //            //ncm.Parameters.AddWithValue("@passwordsalt", passwordSalt);
-        //            //    NpgsqlCommand ncm = new NpgsqlCommand(query.ToString(), con);
-        //            ncm.Parameters.Add("@userid", NpgsqlTypes.NpgsqlDbType.Uuid).Value = id;
-        //            ncm.Parameters.Add("@username", NpgsqlTypes.NpgsqlDbType.Text).Value = usersdto.username.ToString();
-        //            ncm.Parameters.Add("@passwordhash", NpgsqlTypes.NpgsqlDbType.Bytea).Value = passwordHash;
-        //            ncm.Parameters.Add("@passwordsalt", NpgsqlTypes.NpgsqlDbType.Bytea).Value = passwordSalt;
-
-        //            try
-        //            {
-        //                con.Open();
-        //                int result = ncm.ExecuteNonQuery();
-        //                return Ok(result);
-        //            }
-        //            catch (Exception ex)
-        //            {
-        //                return BadRequest(ex.Message);
-        //            }
-        //        }
-        //    }
-        //}
 
         private void CreatePasswordHash(string password, out byte[] passwordHash, out byte[] passwordSalt)
         {
@@ -118,7 +75,7 @@ namespace APIWithKeys.Controllers
         public IActionResult Login(UserDTO request)
         {
             Users user = new Users();
-            string token = "";
+            string token = "";           
             string connect = _configuration["ConnectionStrings:postgres"];
             NpgsqlConnection con = new NpgsqlConnection(connect);
             StringBuilder query = new StringBuilder();
@@ -133,22 +90,25 @@ namespace APIWithKeys.Controllers
                 {
                     if (reader.Read())
                     {
+                        string userid = reader["userid"].ToString();
                         string username = reader["username"].ToString();
                         byte[] passwordHashBytes = reader.GetFieldValue<byte[]>("passwordhash");
                         byte[] passwordSaltBytes = reader.GetFieldValue<byte[]>("passwordsalt");
                         if (VerifyPasswordHash(request.password, passwordHashBytes, passwordSaltBytes))
                         {
+                            user.guid = userid;
                             user.username = username;
                             user.userpasswordHash = passwordHashBytes;
                             user.userpasswordSalt = passwordSaltBytes;
                             token = CreateToken(user);
+                            con.Close();
                         }
                     }
-
                     return Ok(token);
                 }
                 else
                 {
+                    con.Close();
                     return NotFound();
                 }
             }
@@ -178,16 +138,49 @@ namespace APIWithKeys.Controllers
             var key = new SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(_configuration.GetSection("AppSettings:Token").Value.PadRight(32)));
 
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256Signature);
-
             var token = new JwtSecurityToken(
             claims: claims,
             expires: DateTime.Now.AddDays(1),
             signingCredentials: creds);
             var jwt = new JwtSecurityTokenHandler().WriteToken(token);
 
+            string connect = _configuration["ConnectionStrings:postgres"];
+            NpgsqlConnection con = new NpgsqlConnection(connect);
+            StringBuilder query = new StringBuilder();
+            query.Append("UPDATE users SET token = @token WHERE userid = @userid");
+            Guid guid = Guid.Parse(user.guid.ToString());
+            NpgsqlCommand cm = new NpgsqlCommand(query.ToString(), con);
+            cm.Parameters.Add("@token", NpgsqlTypes.NpgsqlDbType.Text).Value = jwt.ToString();
+            cm.Parameters.Add("@userid", NpgsqlTypes.NpgsqlDbType.Uuid).Value = guid;
+            con.Open();
+            cm.ExecuteNonQuery();
+            con.Close();
             return jwt;
         }
 
+        [HttpPost]
+        [Route("checkauth")]
+        public IActionResult checkauth([FromBody] Users users)
+        {
+
+            var connect = _configuration["ConnectionStrings:postgres"];
+            NpgsqlConnection con = new NpgsqlConnection(connect);
+            StringBuilder query = new StringBuilder();
+            query.Append("SELECT * FROM users WHERE token = @token");
+            NpgsqlCommand cm = new NpgsqlCommand(query.ToString(), con);
+            cm.Parameters.Add("@token", NpgsqlTypes.NpgsqlDbType.Text).Value = users.token.ToString();
+            try
+            {
+                con.Open();
+                var result = cm.ExecuteScalar();
+                con.Close();
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(ex.Message);
+            }
+        }
 
 
     }
